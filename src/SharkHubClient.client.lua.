@@ -1,0 +1,152 @@
+-- SHARK HUB | SharkHubClient.client.lua
+-- Interface de depuração para experiências próprias no Roblox Studio.
+-- Coloque este LocalScript em StarterPlayerScripts e os módulos
+-- em StarterPlayerScripts/Modules no Roblox Studio.
+
+local Players = game:GetService("Players")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local modulesFolder = script.Parent:WaitForChild("Modules")
+
+local DebugESP = require(modulesFolder:WaitForChild("DebugESP"))
+local CameraCalibration = require(
+	modulesFolder:WaitForChild("CameraCalibration")
+)
+local PhysicsLab = require(modulesFolder:WaitForChild("PhysicsLab"))
+local FlightController = require(
+	modulesFolder:WaitForChild("FlightController")
+)
+
+local esp = DebugESP.new({
+	FolderName = "SharkTraining",
+})
+
+local cameraTools = CameraCalibration
+local physicsLab = PhysicsLab.new({
+	FolderName = "SharkTraining",
+})
+local flight = FlightController.new()
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "SharkHubUI"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = false
+gui.Parent = playerGui
+
+local main = Instance.new("Frame")
+main.Name = "Main"
+main.Size = UDim2.fromOffset(300, 340)
+main.Position = UDim2.new(0.5, -150, 0.5, -170)
+main.BackgroundColor3 = Color3.fromRGB(12, 18, 32)
+main.BorderSizePixel = 0
+main.Parent = gui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = main
+
+local stroke = Instance.new("UIStroke")
+stroke.Color = Color3.fromRGB(0, 170, 255)
+stroke.Thickness = 1.5
+stroke.Parent = main
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -20, 0, 42)
+title.Position = UDim2.fromOffset(10, 5)
+title.BackgroundTransparency = 1
+title.Text = "SHARK HUB  |  DEV TOOLS"
+title.TextColor3 = Color3.fromRGB(70, 195, 255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 17
+title.Parent = main
+
+local subtitle = Instance.new("TextLabel")
+subtitle.Size = UDim2.new(1, -20, 0, 20)
+subtitle.Position = UDim2.fromOffset(10, 42)
+subtitle.BackgroundTransparency = 1
+subtitle.Text = "Painel de testes • Roblox Studio"
+subtitle.TextColor3 = Color3.fromRGB(170, 185, 205)
+subtitle.Font = Enum.Font.Gotham
+subtitle.TextSize = 11
+subtitle.Parent = main
+
+local status = Instance.new("TextLabel")
+status.Size = UDim2.new(1, -20, 0, 24)
+status.Position = UDim2.fromOffset(10, 72)
+status.BackgroundTransparency = 1
+status.Text = "Status: pronto"
+status.TextColor3 = Color3.fromRGB(100, 220, 160)
+status.Font = Enum.Font.Gotham
+status.TextSize = 12
+status.Parent = main
+
+local function makeButton(text, y, callback)
+	local button = Instance.new("TextButton")
+	button.Size = UDim2.new(1, -24, 0, 38)
+	button.Position = UDim2.fromOffset(12, y)
+	button.BackgroundColor3 = Color3.fromRGB(22, 38, 60)
+	button.BorderSizePixel = 0
+	button.Text = text
+	button.TextColor3 = Color3.fromRGB(235, 245, 255)
+	button.Font = Enum.Font.GothamSemibold
+	button.TextSize = 13
+	button.AutoButtonColor = true
+	button.Parent = main
+
+	local buttonCorner = Instance.new("UICorner")
+	buttonCorner.CornerRadius = UDim.new(0, 8)
+	buttonCorner.Parent = button
+
+	button.Activated:Connect(function()
+		local ok, err = pcall(callback)
+
+		if ok then
+			status.Text = "Status: " .. text
+			status.TextColor3 = Color3.fromRGB(100, 220, 160)
+		else
+			status.Text = "Erro: confira o módulo"
+			status.TextColor3 = Color3.fromRGB(255, 100, 100)
+			warn("[SHARK HUB]", err)
+		end
+	end)
+
+	return button
+end
+
+local espEnabled = false
+
+makeButton("ESP de NPCs: alternar", 104, function()
+	espEnabled = not espEnabled
+	esp:SetEnabled(espEnabled)
+end)
+
+makeButton("Câmera: FOV padrão", 150, function()
+	local ok, value = cameraTools:SetFieldOfView(70)
+	assert(ok, value)
+end)
+
+makeButton("Câmera: FOV amplo", 196, function()
+	local ok, value = cameraTools:SetFieldOfView(85)
+	assert(ok, value)
+end)
+
+makeButton("Voo de teste: desativar", 242, function()
+	flight:Disable()
+end)
+
+makeButton("Restaurar configurações", 288, function()
+	espEnabled = false
+	esp:SetEnabled(false)
+	flight:Disable()
+	cameraTools:Reset()
+	status.Text = "Status: configurações restauradas"
+end)
+
+gui.Destroying:Connect(function()
+	esp:Destroy()
+	flight:Destroy()
+end)
+
+print("[SHARK HUB] Interface de desenvolvimento carregada.")
