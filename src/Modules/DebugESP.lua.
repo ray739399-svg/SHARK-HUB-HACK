@@ -1,0 +1,180 @@
+
+-- SHARK HUB | DebugESP.lua
+-- Visualização de NPCs de treinamento da sua própria experiência.
+
+local DebugESP = {}
+
+local Workspace = game:GetService("Workspace")
+local Players = game:GetService("Players")
+
+local player = Players.LocalPlayer
+
+local DebugESPController = {}
+DebugESPController.__index = DebugESPController
+
+function DebugESP.new(config)
+	config = config or {}
+
+	local self = setmetatable({}, DebugESPController)
+
+	self.FolderName = config.FolderName or "SharkTraining"
+	self.Enabled = false
+	self.ThroughWalls = false
+	self.Objects = {}
+	self.Connection = nil
+	self.Elapsed = 0
+
+	return self
+end
+
+function DebugESPController:_remove(model)
+	local objects = self.Objects[model]
+
+	if objects then
+		for _, object in ipairs(objects) do
+			if object and object.Parent then
+				object:Destroy()
+			end
+		end
+
+		self.Objects[model] = nil
+	end
+end
+
+function DebugESPController:_create(model)
+	if self.Objects[model] then
+		return
+	end
+
+	if not model:IsA("Model") then
+		return
+	end
+
+	if not model:FindFirstChildOfClass("Humanoid") then
+		return
+	end
+
+	local root = model:FindFirstChild("HumanoidRootPart")
+		or model:FindFirstChild("Head")
+
+	if not root then
+		return
+	end
+
+	local highlight = Instance.new("Highlight")
+	highlight.Name = "SharkDebugHighlight"
+	highlight.Adornee = model
+	highlight.FillColor = Color3.fromRGB(0, 170, 255)
+	highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+	highlight.FillTransparency = 0.65
+	highlight.OutlineTransparency = 0
+	highlight.DepthMode = self.ThroughWalls
+		and Enum.HighlightDepthMode.AlwaysOnTop
+		or Enum.HighlightDepthMode.Occluded
+	highlight.Parent = model
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "SharkDebugLabel"
+	billboard.Adornee = root
+	billboard.Size = UDim2.fromOffset(160, 34)
+	billboard.StudsOffset = Vector3.new(0, 2.5, 0)
+	billboard.AlwaysOnTop = self.ThroughWalls
+	billboard.Parent = root
+
+	local label = Instance.new("TextLabel")
+	label.Name = "Label"
+	label.Size = UDim2.fromScale(1, 1)
+	label.BackgroundTransparency = 1
+	label.TextColor3 = Color3.fromRGB(80, 200, 255)
+	label.TextStrokeTransparency = 0.25
+	label.Font = Enum.Font.GothamBold
+	label.TextScaled = true
+	label.Text = model.Name
+	label.Parent = billboard
+
+	self.Objects[model] = {
+		highlight,
+		billboard,
+		label,
+	}
+end
+
+function DebugESPController:_update()
+	local folder = Workspace:FindFirstChild(self.FolderName)
+
+	if not folder then
+		for model in pairs(self.Objects) do
+			self:_remove(model)
+		end
+		return
+	end
+
+	local found = {}
+
+	for _, descendant in ipairs(folder:GetDescendants()) do
+		if descendant:IsA("Model")
+			and descendant:FindFirstChildOfClass("Humanoid") then
+			found[descendant] = true
+			self:_create(descendant)
+		end
+	end
+
+	for model in pairs(self.Objects) do
+		if not found[model] or not model:IsDescendantOf(folder) then
+			self:_remove(model)
+		end
+	end
+end
+
+function DebugESPController:SetEnabled(enabled)
+	self.Enabled = enabled == true
+
+	if self.Enabled then
+		if not self.Connection then
+			self.Connection = game:GetService("RunService").Heartbeat:Connect(
+				function(deltaTime)
+					self.Elapsed += deltaTime
+
+					if self.Elapsed >= 0.25 then
+						self.Elapsed = 0
+						self:_update()
+					end
+				end
+			)
+		end
+
+		self:_update()
+	else
+		if self.Connection then
+			self.Connection:Disconnect()
+			self.Connection = nil
+		end
+
+		for model in pairs(self.Objects) do
+			self:_remove(model)
+		end
+	end
+
+	return self.Enabled
+end
+
+function DebugESPController:SetThroughWalls(enabled)
+	self.ThroughWalls = enabled == true
+
+	for _, objects in pairs(self.Objects) do
+		local highlight = objects[1]
+		local billboard = objects[2]
+
+		highlight.DepthMode = self.ThroughWalls
+			and Enum.HighlightDepthMode.AlwaysOnTop
+			or Enum.HighlightDepthMode.Occluded
+
+		billboard.AlwaysOnTop = self.ThroughWalls
+	end
+end
+
+function DebugESPController:Destroy()
+	self:SetEnabled(false)
+end
+
+return DebugESP
