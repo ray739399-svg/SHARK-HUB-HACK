@@ -1,0 +1,151 @@
+-- SHARK HUB | FlightController.lua
+-- Controlador de voo para testes em experiências próprias.
+
+local FlightController = {}
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+
+local Controller = {}
+Controller.__index = Controller
+
+function FlightController.new()
+	local self = setmetatable({}, Controller)
+
+	self.Enabled = false
+	self.Speed = 24
+	self._connection = nil
+	self._attachment = nil
+	self._velocity = nil
+	self._humanoid = nil
+	self._root = nil
+	self._oldAutoRotate = nil
+
+	return self
+end
+
+function Controller:_cleanup()
+	if self._connection then
+		self._connection:Disconnect()
+		self._connection = nil
+	end
+
+	if self._velocity then
+		self._velocity:Destroy()
+		self._velocity = nil
+	end
+
+	if self._attachment then
+		self._attachment:Destroy()
+		self._attachment = nil
+	end
+
+	if self._humanoid and self._humanoid.Parent then
+		self._humanoid.AutoRotate = self._oldAutoRotate
+		self._humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+	end
+
+	self._humanoid = nil
+	self._root = nil
+	self.Enabled = false
+end
+
+function Controller:SetSpeed(speed)
+	if typeof(speed) ~= "number" then
+		return false, "A velocidade precisa ser numérica."
+	end
+
+	self.Speed = math.clamp(speed, 8, 60)
+	return true, self.Speed
+end
+
+function Controller:Enable()
+	if self.Enabled then
+		return true
+	end
+
+	local character = player.Character
+	if not character then
+		return false, "Personagem indisponível."
+	end
+
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	local root = character:FindFirstChild("HumanoidRootPart")
+
+	if not humanoid or not root then
+		return false, "Não foi possível encontrar o personagem."
+	end
+
+	self._humanoid = humanoid
+	self._root = root
+	self._oldAutoRotate = humanoid.AutoRotate
+
+	self._attachment = Instance.new("Attachment")
+	self._attachment.Name = "SharkFlightAttachment"
+	self._attachment.Parent = root
+
+	self._velocity = Instance.new("LinearVelocity")
+	self._velocity.Name = "SharkFlightVelocity"
+	self._velocity.Attachment0 = self._attachment
+	self._velocity.RelativeTo = Enum.ActuatorRelativeTo.World
+	self._velocity.VelocityConstraintMode =
+		Enum.VelocityConstraintMode.Vector
+	self._velocity.MaxForce = 100000
+	self._velocity.VectorVelocity = Vector3.zero
+	self._velocity.Parent = root
+
+	humanoid.AutoRotate = false
+	humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+
+	self.Enabled = true
+
+	self._connection = RunService.RenderStepped:Connect(function()
+		if not self.Enabled or not root.Parent then
+			self:Disable()
+			return
+		end
+
+		local camera = workspace.CurrentCamera
+		if not camera then
+			return
+		end
+
+		local direction = Vector3.zero
+
+		if UserInputService then
+			-- A direção é definida por SetDirection().
+			direction = self._direction or Vector3.zero
+		end
+
+		self._velocity.VectorVelocity = direction * self.Speed
+	end)
+
+	return true
+end
+
+function Controller:SetDirection(direction)
+	if typeof(direction) ~= "Vector3" then
+		return false, "A direção precisa ser um Vector3."
+	end
+
+	if direction.Magnitude > 1 then
+		direction = direction.Unit
+	end
+
+	self._direction = direction
+	return true
+end
+
+function Controller:Disable()
+	self:_cleanup()
+	self._direction = Vector3.zero
+	return true
+end
+
+function Controller:Destroy()
+	self:Disable()
+end
+
+return FlightController
