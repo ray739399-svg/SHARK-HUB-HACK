@@ -1,0 +1,90 @@
+
+-- SHARK HUB | CameraCalibration.lua
+-- Ferramentas de calibração de câmera para Roblox Studio.
+
+local CameraCalibration = {}
+
+local MIN_FOV = 40
+local MAX_FOV = 100
+local DEFAULT_FOV = 70
+
+local MIN_SENSITIVITY = 0.1
+local MAX_SENSITIVITY = 3
+local DEFAULT_SENSITIVITY = 1
+
+local sensitivity = DEFAULT_SENSITIVITY
+local enabled = false
+
+function CameraCalibration:SetEnabled(value)
+	enabled = value == true
+	return enabled
+end
+
+function CameraCalibration:IsEnabled()
+	return enabled
+end
+
+function CameraCalibration:SetSensitivity(value)
+	if typeof(value) ~= "number" then
+		return false, "Informe um valor numérico."
+	end
+
+	sensitivity = math.clamp(
+		value,
+		MIN_SENSITIVITY,
+		MAX_SENSITIVITY
+	)
+
+	return true, sensitivity
+end
+
+function CameraCalibration:GetSensitivity()
+	return sensitivity
+end
+
+function CameraCalibration:SetFieldOfView(value)
+	if typeof(value) ~= "number" then
+		return false, "O FOV precisa ser numérico."
+	end
+
+	local camera = workspace.CurrentCamera
+
+	if not camera then
+		return false, "Câmera indisponível."
+	end
+
+	camera.FieldOfView = math.clamp(value, MIN_FOV, MAX_FOV)
+
+	return true, camera.FieldOfView
+end
+
+function CameraCalibration:GetInfo()
+	local camera = workspace.CurrentCamera
+
+	if not camera then
+		return nil, "Câmera indisponível."
+	end
+
+	return {
+		FieldOfView = camera.FieldOfView,
+		ViewportSize = camera.ViewportSize,
+		CameraType = camera.CameraType.Name,
+		Sensitivity = sensitivity,
+		Enabled = enabled,
+	}
+end
+
+function CameraCalibration:Reset()
+	sensitivity = DEFAULT_SENSITIVITY
+	enabled = false
+
+	local camera = workspace.CurrentCamera
+
+	if camera then
+		camera.FieldOfView = DEFAULT_FOV
+	end
+
+	return true
+end
+
+return CameraCalibration
